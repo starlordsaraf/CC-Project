@@ -19,13 +19,19 @@ def add_user():
     #print(username)
     #print(password)
     #no_user = mongo.db.users.find({"username":username}).count()
-    allusers_res = requests.post('http://127.0.0.1:5001/api/v1/users')
+    allusers_res = requests.get('http://127.0.0.1:5001/api/v1/users')
+    print(allusers_res.content)
     allusers = json.loads(allusers_res.content.decode("utf-8"))
-    no_user = list(allusers).count(username)
+    no_user=0
+    print(allusers)
+    if(allusers!=[]):
+        for i in list(allusers):
+            if(i["username"]==username):
+                no_user = 1
     if(no_user==0):
         if(re.match("^[a-fA-F0-9]{40}$",password)):
             data ={"method":"put","collection":"users","data":{"username":username,"password":password}}
-            requests.post('http://127.0.0.1:5002/api/v1/db/users/write',json =data)
+            requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
             return Response(json.dumps({}),status=201,mimetype='application/json')
         else:
             return Response(json.dumps({}), status=400,mimetype='application/json')
@@ -37,14 +43,18 @@ def add_user():
 @app.route('/api/v1/users/<string:name>',methods=['DELETE'])
 def delete_user(name):
     #no_user = mongo.db.users.find({"username":name}).count()
-    allusers_res = requests.post('http://127.0.0.1:5001/api/v1/users')
+    allusers_res = requests.get('http://127.0.0.1:5001/api/v1/users')
     allusers = json.loads(allusers_res.content.decode("utf-8"))
-    no_user = list(allusers).count(name)
+    no_user=0
+    if(allusers!=[]):
+        for i in list(allusers):
+            if(i["username"]==name):
+                no_user = 1
     if(no_user==0):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     else:
         data ={"method":"delete","collection":"users","data":{"username":name}}
-        requests.post('http://127.0.0.1:5001/api/v1/db/users/write',json =data)
+        requests.post('http://127.0.0.1:5001/api/v1/db/write',json =data)
         return Response(json.dumps({}), status=200, mimetype='application/json')
 
 
@@ -71,4 +81,4 @@ def clear():
 
 if __name__ == '__main__':	
 	app.debug=True
-	app.run()
+	app.run(host="localhost", port=5001, debug=True)

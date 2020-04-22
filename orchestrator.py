@@ -25,7 +25,9 @@ def read():
     d_values = json.dumps(request.get_json())
     channel_r.basic_publish(exchange='',routing_key='readq',body=d_values)
     print("added to readq")
-    response = resp_channel.basic_get("responseq")[2]
+    response = resp_channel.basic_get("responseq")[2]  #FIX ME!!
+    print("Response:",response)
+    
     return(json.dumps(json.loads(response)))
 
 
@@ -48,7 +50,7 @@ def kill_highest_slave():
     pass
 
 
-@app.route('/api/v/worker/list')
+@app.route('/api/v1/worker/list')
 def get_sorted_workers_pid():
     pass
 
@@ -58,4 +60,4 @@ def get_sorted_workers_pid():
 
 if __name__ == '__main__':	
 	app.debug=True
-	app.run()
+	app.run(host="localhost", port=5002, debug=True)

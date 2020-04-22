@@ -3,43 +3,14 @@ import json
 from pymongo import MongoClient
 from datetime import datetime
 from bson.json_util import dumps
+from subprocess import check_output
+import os
 
 client = MongoClient("mongodb://localhost:27017")
 
 resp_connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 resp_channel = resp_connection.channel()
 resp_channel.queue_declare(queue="responseq")
-
-
-def write_callback(ch,method,properties,body):
-    db = client.uber
-    print("[x] received %r" %body)
-    d_values = json.loads(body)
-    collection = d_values["collection"]
-    data = d_values["data"]
-    method = d_values["method"]
-
-    if(collection=="rides"):
-        if(method=="post"):
-            db.rides.insert(data)
-        if(method=="join"):
-            rideId = d_values["rideId"]
-            db.rides.update({"rideId":rideId},{'$push':data})
-        if(method=="delete"):
-            db.rides.remove(data)
-        if(method=="clear"):
-            db.rides.remove({})
-
-	if(collection=="users"):
-		if(method=="put"):
-			db.users.insert(data)
-    	if(method=="delete"):
-        	db.users.remove(data)
-		if(method=="clear"):
-			db.rides.remove({})	
-	
-    
-
 
 def read_callback(ch,method,properties,body):
 	db = client.uber
@@ -80,31 +51,17 @@ def read_callback(ch,method,properties,body):
 	if(collection=="users"):
 		if(method=="get_all"):
 			result = dumps(db.users.find({},{"_id":0}))
-	
+            
+	print(result)
 	resp_channel.basic_publish(exchange='',routing_key='responseq',body=result)
 
 
-    
+
+connection_r = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+channel_r = connection_r.channel()
+channel_r.queue_declare(queue="readq")
 
 
-
-if(1):     #if master
-	connection_w = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-	channel_w = connection_w.channel()
-	channel_w.queue_declare(queue="writeq")
-
-
-	channel_w.basic_consume(queue="writeq", on_message_callback=write_callback, auto_ack=True)
-	print("Waiting for write messages")
-	channel_w.start_consuming() 
-
-else:	#if slave
-	connection_r = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-	channel_r = connection_w.channel()
-	channel_r.queue_declare(queue="readq")
-
-
-	channel_r.basic_consume(queue="readq", on_message_callback=read_callback, auto_ack=True)
-	print("Waiting for read messages")
-	channel_r.start_consuming() 
-
+channel_r.basic_consume(queue="readq", on_message_callback=read_callback, auto_ack=True)
+print("Waiting for read messages")
+channel_r.start_consuming() 

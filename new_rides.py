@@ -202,4 +202,4 @@ def get_no_id_rides(rideId):
 
 if __name__ == '__main__':	
 	app.debug=True
-	app.run()
+	app.run(host="localhost", port=5000, debug=True)

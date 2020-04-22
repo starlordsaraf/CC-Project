@@ -11,9 +11,9 @@ def callback(ch,method,properties,body):
     return(d["A"])
 
 
-#channel.basic_consume(queue="hello", on_message_callback=callback, auto_ack=True)
-body = channel.basic_get("hello")[2]
-print(json.dumps(json.loads(body)))
+channel.basic_consume(queue="hello", on_message_callback=callback, auto_ack=True)
+#body = channel.basic_get("hello")[2]
+#print(json.dumps(json.loads(body)))
 
 print("Waiting for messages")
 channel.start_consuming() 
