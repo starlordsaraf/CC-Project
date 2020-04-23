@@ -20,11 +20,10 @@ def add_user():
     #print(password)
     #no_user = mongo.db.users.find({"username":username}).count()
     allusers_res = requests.get('http://127.0.0.1:5001/api/v1/users')
-    print(allusers_res.content)
-    allusers = json.loads(allusers_res.content.decode("utf-8"))
+    #print(allusers_res.content)
     no_user=0
-    print(allusers)
-    if(allusers!=[]):
+    if(allusers_res.status_code!=204):
+        allusers = json.loads(allusers_res.content.decode("utf-8"))
         for i in list(allusers):
             if(i["username"]==username):
                 no_user = 1
@@ -44,9 +43,9 @@ def add_user():
 def delete_user(name):
     #no_user = mongo.db.users.find({"username":name}).count()
     allusers_res = requests.get('http://127.0.0.1:5001/api/v1/users')
-    allusers = json.loads(allusers_res.content.decode("utf-8"))
     no_user=0
-    if(allusers!=[]):
+    if(allusers_res.status_code!=204):
+        allusers = json.loads(allusers_res.content.decode("utf-8"))
         for i in list(allusers):
             if(i["username"]==name):
                 no_user = 1
@@ -54,7 +53,7 @@ def delete_user(name):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     else:
         data ={"method":"delete","collection":"users","data":{"username":name}}
-        requests.post('http://127.0.0.1:5001/api/v1/db/write',json =data)
+        requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
         return Response(json.dumps({}), status=200, mimetype='application/json')
 
 

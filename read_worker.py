@@ -38,13 +38,13 @@ def read_callback(ch,method,properties,body):
 		if(method=="get_ride"):
 			result = dumps(db.rides.find(data,{"_id":0}))
 		if(method=="get_rides_count"):
-			result = db.rides.find().count() 
+			result = str(db.rides.find().count()) 
 		if(method=="get_user_rides"):
 			result = dumps(db.rides.find(data))
 		if(method=="get_id_rides"):
 			result = dumps(db.rides.find(data))
 		if(method=="get_id_rides_count"):
-			result = db.rides.find(data).count()
+			result = str(db.rides.find(data).count())
 		if(method=="get_all_rides"):
 			result = dumps(db.rides.find())
 
@@ -52,7 +52,7 @@ def read_callback(ch,method,properties,body):
 		if(method=="get_all"):
 			result = dumps(db.users.find({},{"_id":0}))
             
-	print(result)
+	#print(result)
 	resp_channel.basic_publish(exchange='',routing_key='responseq',body=result)
 
 

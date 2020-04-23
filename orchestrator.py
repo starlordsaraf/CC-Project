@@ -19,16 +19,30 @@ resp_connection = pika.BlockingConnection(pika.ConnectionParameters(host='localh
 resp_channel = resp_connection.channel()
 resp_channel.queue_declare(queue="responseq")
 
+class Callback(object):
+    def __init__(self,body):
+        self.body=body
+    def response_callback(self, ch, method, properties, body):
+        print("[x] received %r" %body)
+        d = body.decode("utf-8")
+        d = json.loads(d)
+        self.body = d
+        resp_channel.stop_consuming()
 
 @app.route('/api/v1/db/read',methods=["POST"])
 def read():
     d_values = json.dumps(request.get_json())
     channel_r.basic_publish(exchange='',routing_key='readq',body=d_values)
     print("added to readq")
-    response = resp_channel.basic_get("responseq")[2]  #FIX ME!!
-    print("Response:",response)
+    #response = resp_channel.basic_get("responseq")[2]  #FIX ME!!
+    C = Callback("null")
+    resp_channel.basic_consume(queue="responseq", on_message_callback=C.response_callback, auto_ack=True)
+    print("Waiting for response messages")
+    resp_channel.start_consuming() 
+    response = C.body
+    #print("Response:",response)
     
-    return(json.dumps(json.loads(response)))
+    return(json.dumps(response))
 
 
 
