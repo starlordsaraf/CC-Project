@@ -8,25 +8,11 @@ from bson.json_util import dumps
 from datetime import datetime
 import logging
 
-
-
 app = Flask(__name__)
-app.config["MONGO_URI"] = "mongodb://localhost:27017/rides"
-mongo = PyMongo(app)
-
-
 
 #API to create new ride
 @app.route('/api/v1/rides',methods=['POST'])
 def add_ride():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
     if(not request.json):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     data = request.get_json()
@@ -51,13 +37,17 @@ def add_ride():
         with open("AreaNameEnum.csv") as f:
             lines = sum(1 for line in f)
         if(source in range(1,199) and destination in range(1,199) and source!=destination):
-            no_rides = mongo.db.rides.count()
-            if(no_rides==0):
+            #no_rides = mongo.db.rides.count()
+            no_res = requests.get('http://127.0.0.1:5000/api/v1/rides/count')
+            if(no_res.status_code==204):
                 rideId = 1
             else:    
-                rideId = list(mongo.db.rides.find())[no_rides-1]["rideId"]+1
+                no_rides = json.loads(no_res.content)[0]
+                allrides_res = requests.get('http://127.0.0.1:5000/api/v1/rides/allrides')
+                allrides = json.loads(allrides_res.content.decode("utf-8"))
+                rideId = list(allrides)[no_rides-1]["rideId"]+1
             data= {"method":"post","collection":"rides","data":{"rideId":rideId,"created_by":username,"users":[],"timestamp":timestamp,"source":source,"destination":destination}}
-            requests.post('http://127.0.0.1:5000/api/v1/db/write',json =data)
+            requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
             return Response(json.dumps({}), status=201, mimetype='application/json')
         else:
             return Response(json.dumps({}), status=400, mimetype='application/json')
@@ -67,14 +57,6 @@ def add_ride():
 #API to get rides given source and destination as query params
 @app.route('/api/v1/rides',methods=['GET'])
 def list_rides():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
     source = request.args.get("source")
     destination = request.args.get("destination")
     with open("AreaNameEnum.csv") as f:
@@ -82,7 +64,7 @@ def list_rides():
     #print(lines)
     if(int(source) in range(1,lines) and int(destination) in range(1,lines) and int(source)!=int(destination)):
         data = {"method":"get_all","collection":"rides","data":{"source":int(source),"destination":int(destination)}}
-        response = requests.post('http://127.0.0.1:5000/api/v1/db/read',json =data)
+        response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
         if(json.loads(response.content.decode("utf-8"))==[]):
             return Response(json.dumps({}), status=204, mimetype='application/json')
         else:
@@ -91,23 +73,18 @@ def list_rides():
         return Response(json.dumps({}), status=400, mimetype='application/json')
 
 
+
 #API to get ride details given rideID in url
 @app.route('/api/v1/rides/<int:rideId>',methods=['GET'])
-def ride_details(rideId):
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    no_rides = mongo.db.rides.find({"rideId":rideId}).count()
+def ride_details(rideId):  
+    #no_rides = mongo.db.rides.find({"rideId":rideId}).count()
+    no_res = requests.get('http://127.0.0.1:5000/api/v1/rides/rideIdcount/'+str(rideId))
+    no_rides = json.loads(no_res.content.decode("utf-8"))[0]
     if(no_rides==0):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     else:
         data = {"method":"get_ride","collection":"rides","data":{"rideId":rideId}}
-        response = requests.post('http://127.0.0.1:5000/api/v1/db/read',json =data)
+        response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
         return(response.content)
 
 
@@ -115,15 +92,11 @@ def ride_details(rideId):
 #API to add user to existing ride (join the ride)
 @app.route('/api/v1/rides/<int:rideId>',methods=['POST'])
 def join_ride(rideId):
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    no_rides = mongo.db.rides.find({"rideId":rideId}).count()
+    #no_rides = mongo.db.rides.find({"rideId":rideId}).count()
+    no_res = requests.get('http://127.0.0.1:5000/api/v1/rides/rideIdcount/'+str(rideId))
+    no_rides = 0
+    if(no_res.status_code!=204):
+        no_rides = json.loads(no_res.content)[0]
     data = request.get_json()
     username = request.get_json()["username"]
     #no_user = mongo.db.users.find({"username":username}).count()
@@ -137,9 +110,13 @@ def join_ride(rideId):
     if(no_rides==0 or no_user==0):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     else:
-        creator = mongo.db.rides.find({"created_by":username})
+        #creator = mongo.db.rides.find({"created_by":username})
+        creator_res = requests.get('http://127.0.0.1:5000/api/v1/rides/userrides/'+username)
+        creator = json.loads(creator_res.content.decode("utf-8"))
         creator_rides=[]
-        rides = list(mongo.db.rides.find({"rideId":rideId}))
+        #rides = list(mongo.db.rides.find({"rideId":rideId}))
+        rides_res = requests.get('http://127.0.0.1:5000/api/v1/rides/rideIdrides/'+str(rideId))
+        rides = list(json.loads(rides_res.content.decode("utf-8")))
         for i in creator:
             creator_rides.append(i["rideId"])
         if(rideId in creator_rides):
@@ -148,7 +125,7 @@ def join_ride(rideId):
             return Response(json.dumps({}), status=400, mimetype='application/json')
         else:
             data = {"method":"join","collection":"rides","rideId":rideId,"data":{"users":username}}
-            requests.post('http://127.0.0.1:5000/api/v1/db/write',json =data)
+            requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
             return Response(json.dumps({}), status=200, mimetype='application/json')
 
 
@@ -156,127 +133,30 @@ def join_ride(rideId):
 #API to delete existing ride
 @app.route('/api/v1/rides/<int:rideId>',methods=['DELETE'])
 def delete_ride(rideId):
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    no_rides = mongo.db.rides.find({"rideId":rideId}).count()
-    if(no_rides==0):
+    #no_rides = mongo.db.rides.find({"rideId":rideId}).count()
+    no_res = requests.get('http://127.0.0.1:5000/api/v1/db/rides/count')
+    if(no_res.status_code==204):
         return Response(json.dumps({}), status=400, mimetype='application/json')
     else:
         data = {"method":"delete","collection":"rides","data":{"rideId":rideId}}
-        requests.post('http://127.0.0.1:5000/api/v1/db/write',json =data)
+        requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
         return Response(json.dumps({}), status=200, mimetype='application/json')
-
-
-#API for all database writes
-@app.route('/api/v1/db/write',methods=["POST"])
-def write():
-    d_values = request.get_json()
-    #d_values = json.loads(values)
-    collection = d_values["collection"]
-    data = d_values["data"]
-    method = d_values["method"]
-    # if(method=="put" and collection=="users"):
-    #     mongo.db.users.insert(data)
-    # if(method=="delete" and collection=="users"):
-    #     mongo.db.users.remove(data)
-    if(method=="post" and collection=="rides"):
-        mongo.db.rides.insert(data)
-    if(method=="join" and collection=="rides"):
-        rideId = d_values["rideId"]
-        mongo.db.rides.update({"rideId":rideId},{'$push':data})
-    if(method=="delete" and collection=="rides"):
-        mongo.db.rides.remove(data)
-    return "done"
-
-
-#API for all database reads
-@app.route('/api/v1/db/read',methods=["POST"])
-def read():
-    d_values = request.get_json()
-    #d_values = json.loads(values)
-    collection = d_values["collection"]
-    data = d_values["data"]
-    method = d_values["method"]
-    if(method=="get_all" and collection=="rides"):
-        #result = dumps(mongo.db.rides.find(data,{"rideId":1,"created_by":1,"timestamp":1,"_id":0}))   
-        result=[] 
-        cursor = list(mongo.db.rides.find(data,{"rideId":1,"created_by":1,"timestamp":1,"_id":0}))
-        for i in cursor:
-            timestamp = i['timestamp'].split(':')
-            date = timestamp[0].split('-')
-            time = timestamp[1].split('-')
-            current_time = datetime.now()
-            record_time = datetime(int(date[2]),int(date[1]),int(date[0]),int(time[2]),int(time[1]),int(time[0]))
-            #print(record_time)
-            #print(current_time)
-            if(record_time>=current_time):
-                result.append(i)   
-        result = dumps(result)     
-
-    if(method=="get_ride" and collection=="rides"):
-        result = dumps(mongo.db.rides.find(data,{"_id":0}))
-
-    if(method=="get_rides_count" and collection=="rides"):
-        result = mongo.db.rides.find().count()
-    
-    return(result)
 
 
 #API to clear db
 @app.route('/api/v1/db/clear',methods=["POST"])
 def clear():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    mongo.db.rides.remove({})
+    data = {"method":"clear","collection":"rides","data":"null"}
+    requests.post('http://127.0.0.1:5002/api/v1/db/write',json =data)
     return '{}'
 
-#API to count http requests to rides app
-@app.route('/api/v1/_count',methods=["GET"])
-def getrequestcount():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    f.close()
-    return ('[ '+str(count)+' ]')
 
-#reset requests count for rides app
-@app.route('/api/v1/_count',methods=["DELETE"])
-def resetrequestcount():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count = 0
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    return '{}'
 
 #API to get total number of rides
 @app.route('/api/v1/rides/count',methods=["GET"])
-def getnorides():
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-
-    
+def getnorides():    
     data = {"method":"get_rides_count","collection":"rides","data":"null"}
-    response = requests.post('http://127.0.0.1:5000/api/v1/db/read',json =data)
+    response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
     ctr = int(response.content)
     if(ctr==0):
         return Response('[ '+str(ctr)+' ]', status=204, mimetype='application/json')
@@ -284,41 +164,43 @@ def getnorides():
         return('[ '+str(ctr)+' ]')
 
 
+#API to get rides based on username
+@app.route('/api/v1/rides/userrides/<username>',methods=["GET"])
+def get_user_rides(username):    
+    data = {"method":"get_user_rides","collection":"rides","data":{"created_by":username}}
+    response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
+    return Response(response.content, status=200, mimetype='application/json')
 
-@app.errorhandler(404)
-def not_found(e):
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-    return Response('',status=404)
 
-# @app.errorhandler(400)
-# def not_found_bad(e):
-#     f = open("rides_count.txt","r")
-#     count = int(f.read())
-#     count +=1
-#     f.close()
-#     f = open("rides_count.txt","w")
-#     f.write(str(count))
-#     f.close()
-#     return Response('',status=400)
 
-@app.errorhandler(405)
-def not_method(e):
-    f = open("rides_count.txt","r")
-    count = int(f.read())
-    count +=1
-    f.close()
-    f = open("rides_count.txt","w")
-    f.write(str(count))
-    f.close()
-    return Response('',status=405)
+#API to get rides based on rideId
+@app.route('/api/v1/rides/rideIdrides/<int:rideId>',methods=["GET"])
+def get_id_rides(rideId):    
+    data = {"method":"get_id_rides","collection":"rides","data":{"rideId":rideId}}
+    response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
+    return Response(response.content, status=200, mimetype='application/json')
+
+
+#API to get all rides 
+@app.route('/api/v1/rides/allrides',methods=["GET"])
+def get_all_rides():    
+    data = {"method":"get_all_rides","collection":"rides","data":"null"}
+    response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
+    return Response(response.content, status=200, mimetype='application/json')
+
+
+#API to get number of rides based on rideId
+@app.route('/api/v1/rides/rideIdcount/<int:rideId>',methods=["GET"])
+def get_no_id_rides(rideId):    
+    data = {"method":"get_id_rides_count","collection":"rides","data":{"rideId":rideId}}
+    response = requests.post('http://127.0.0.1:5002/api/v1/db/read',json =data)
+    ctr = int(response.content)
+    if(ctr==0):
+        return Response('[ '+str(ctr)+' ]', status=204, mimetype='application/json')
+    else:
+        return('[ '+str(ctr)+' ]')
 
 
 if __name__ == '__main__':	
 	app.debug=True
-	app.run()
+	app.run(host="localhost", port=5000, debug=True)
