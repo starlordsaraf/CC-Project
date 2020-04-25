@@ -5,6 +5,8 @@ from datetime import datetime
 from bson.json_util import dumps
 from subprocess import check_output
 import os
+import sys
+import subprocess
 
 client = MongoClient("mongodb://localhost:27017")
 
@@ -64,4 +66,7 @@ channel_r.queue_declare(queue="readq")
 
 channel_r.basic_consume(queue="readq", on_message_callback=read_callback, auto_ack=True)
 print("Waiting for read messages")
+
+subprocess.Popen([sys.executable, "sync_slave_worker.py"] ,close_fds=True,shell=False)   #FIX ME!! -- clash with read
+
 channel_r.start_consuming() 
