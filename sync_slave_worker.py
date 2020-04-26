@@ -28,7 +28,7 @@ def callback(ch, method, properties, body):
     command_list = json.loads(body)
     for command in command_list:
         if(command['_id']["$oid"] not in logs):
-            logs_file.write("\n"+command['_id']["$oid"])
+            logs_file.write(command['_id']["$oid"]+"\n")
 
             collection = command["collection"]
             data = command["data"]
