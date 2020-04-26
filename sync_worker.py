@@ -22,7 +22,7 @@ class Callback(object):
         print("[x] received %r" %body)
         d_values = json.loads(body)    
         db.logs.insert(d_values)
-        if(self.count%10==0):               #confirm number needed
+        if(self.count%2==0):               #confirm number needed
             connection_sync = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
             channel_sync = connection_sync.channel()
             channel_sync.exchange_declare(exchange='logs', exchange_type='fanout')

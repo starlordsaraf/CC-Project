@@ -5,6 +5,8 @@ from datetime import datetime
 from bson.json_util import dumps
 from subprocess import check_output
 import os
+import sys
+import subprocess
 
 client = MongoClient("mongodb://localhost:27017")
 
@@ -36,6 +38,11 @@ def write_callback(ch,method,properties,body):
             db.users.remove(data)
         if(method=="clear"):
             db.users.remove({})	
+            
+    channel_s.basic_publish(exchange='',routing_key='syncq',body=body)
+    print("[x] published to syncq",body)
+
+
 
 def read_callback(ch,method,properties,body):
 	db = client.uber
@@ -83,6 +90,10 @@ def read_callback(ch,method,properties,body):
 
 
 if(os.environ['NODE_TYPE']=="MASTER"):
+    connection_s = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    channel_s = connection_s.channel()
+    channel_s.queue_declare(queue="syncq")
+
     connection_w = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
     channel_w = connection_w.channel()
     channel_w.queue_declare(queue="writeq")
@@ -103,5 +114,8 @@ else:
 
     channel_r.basic_consume(queue="readq", on_message_callback=read_callback, auto_ack=True)
     print("Waiting for read messages")
+
+    subprocess.Popen([sys.executable, "sync_slave_worker.py"] ,close_fds=True,shell=False)  
+
     channel_r.start_consuming()
     
