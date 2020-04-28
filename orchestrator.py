@@ -4,6 +4,11 @@ import json
 from flask import Response
 from bson.json_util import dumps
 import pika
+import datetime
+import math
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 app = Flask(__name__)
 
@@ -19,6 +24,28 @@ resp_connection = pika.BlockingConnection(pika.ConnectionParameters(host='localh
 resp_channel = resp_connection.channel()
 resp_channel.queue_declare(queue="responseq")
 
+class Scale(object):
+    total = 0
+    count = 0
+    number = 0
+
+    def check(self):
+        print("################hello in trigger#################")
+        containers_needed = math.ceil(self.count/20)
+        containers_running = 0 #TODO: Write command to count current containers
+        self.count = 0
+        if(containers_needed>containers_running):
+            for i in range(containers_needed-containers_running):
+                self.number+=1
+                container_name = "slave"+str(self.number)
+                mongo_name = "slave-mongo"+str(self.number)
+                #TODO: call container and mongo spawnning commands
+        elif(containers_needed<containers_running):
+            #TODO: delete containers and theri respective mongo containers
+            pass
+
+
+
 class Callback(object):
     def __init__(self,body):
         self.body=body
@@ -29,8 +56,22 @@ class Callback(object):
         self.body = d
         resp_channel.stop_consuming()
 
+
+S = Scale()
+
+
 @app.route('/api/v1/db/read',methods=["POST"])
 def read():
+    S.total+=1
+    if(request.get_json()["method"] not in ["get_id_rides_count","get_all_rides","get_id_rides","get_user_rides"]):
+        S.count+=1
+    if(S.total==1):
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(func=S.check, trigger="interval", seconds=120)
+        scheduler.start()  
+        atexit.register(lambda: scheduler.shutdown())  
+
+
     d_values = json.dumps(request.get_json())
     channel_r.basic_publish(exchange='',routing_key='readq',body=d_values)
     print("added to readq")
